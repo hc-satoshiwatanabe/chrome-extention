@@ -49,6 +49,20 @@ kintone(cybozu.com / kintone.com)のアプリ内でリンクをクリックす�
 
 日本語(主)
 
+## プライバシーポリシーURL
+
+両ストアの申請フォームで、プライバシーポリシーのURLとして以下を入力してください。
+
+```
+https://github.com/hc-satoshiwatanabe/chrome-extention/blob/main/PRIVACY.md
+```
+
+## ソースコード / サポートURL
+
+```
+https://github.com/hc-satoshiwatanabe/chrome-extention
+```
+
 ## スクリーンショット(要準備)
 
 Chrome Web Storeは1280x800または640x400のスクリーンショットが最低1枚必要です。

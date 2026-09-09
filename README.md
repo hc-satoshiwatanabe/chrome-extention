@@ -1,12 +1,15 @@
-# kintone Link Dialog
+# Link Dialog for kintone
 
-kintoneアプリ内のリンククリックを、ページ遷移ではなくダイアログ(iframe)表示に差し替えるChrome/Edge拡張機能です。個人利用向けに「パッケージ化されていない拡張機能」として読み込む前提で作っています。
+kintoneアプリ内のリンククリックを、ページ遷移ではなくダイアログ(iframe)表示に差し替えるChrome/Edge拡張機能です。サイボウズ株式会社の公式製品ではない、非公式の個人開発ツールです。
 
-## インストール(Chrome / Edge共通)
+- リポジトリ: https://github.com/hc-satoshiwatanabe/chrome-extention
+- プライバシーポリシー: [PRIVACY.md](PRIVACY.md)（公開URL: https://github.com/hc-satoshiwatanabe/chrome-extention/blob/main/PRIVACY.md ）
+
+## インストール(Chrome / Edge共通・開発者モード)
 
 1. `chrome://extensions`(Edgeは`edge://extensions`)を開く
 2. 右上の「デベロッパーモード」をONにする
-3. 「パッケージ化されていない拡張機能を読み込む」をクリックし、このフォルダ(`kintone-link-dialog-extension`)を選択する
+3. 「パッケージ化されていない拡張機能を読み込む」をクリックし、このリポジトリのフォルダを選択する
 4. kintoneのページを開き直す(既に開いているタブはリロードが必要)
 
 ## 使い方
