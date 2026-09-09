@@ -95,7 +95,13 @@
     }
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
 
+    if (isExcludedPath(url)) return false;
+
     return true;
+  }
+
+  function isExcludedPath(url) {
+    return /\/(space|portal)(\/|$|\?)/.test(url.pathname) || /\/(space|portal)(\/|$|\?)/.test(url.hash);
   }
 
   function closeDialog() {
