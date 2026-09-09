@@ -27,9 +27,9 @@
       justify-content: center;
     }
     .kld-dialog {
-      width: 90vw;
+      width: 95vw;
       height: 90vh;
-      max-width: 1200px;
+      max-width: 1600px;
       background: #fff;
       border-radius: 6px;
       box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
