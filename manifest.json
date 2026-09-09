@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Link Dialog for kintone",
+  "version": "1.0.0",
+  "description": "kintone内のリンククリックをダイアログ(iframe)表示に差し替える非公式の拡張機能です。",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.cybozu.com/*",
+        "https://*.kintone.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Link Dialog for kintone",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "permissions": ["storage"]
+}

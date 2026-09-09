@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>mockup</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
+    background: #eef1f4;
+    width: 1280px;
+    height: 800px;
+    overflow: hidden;
+  }
+  .app-header {
+    height: 56px;
+    background: #3a4b5c;
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    color: #fff;
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .app-body {
+    padding: 24px 32px;
+  }
+  .app-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #2c3e50;
+    margin-bottom: 16px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  th, td {
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid #e3e7ea;
+    font-size: 14px;
+    color: #333;
+  }
+  th {
+    background: #f4f6f8;
+    font-weight: 600;
+    color: #555;
+  }
+  a.record-link {
+    color: #3498db;
+    text-decoration: none;
+    font-weight: 600;
+  }
+  a.record-link:hover { text-decoration: underline; }
+
+  /* dialog mockup */
+  .kld-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .kld-dialog {
+    width: 760px;
+    height: 560px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .kld-header {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 16px;
+    padding: 8px 14px;
+    background: #f4f4f4;
+    border-bottom: 1px solid #ddd;
+  }
+  .kld-newtab {
+    font-size: 13px;
+    color: #3498db;
+    text-decoration: none;
+  }
+  .kld-close {
+    font-size: 22px;
+    color: #555;
+    line-height: 1;
+  }
+  .kld-body {
+    flex: 1;
+    padding: 28px 32px;
+    background: #fff;
+  }
+  .kld-body h2 {
+    margin: 0 0 18px;
+    font-size: 18px;
+    color: #2c3e50;
+  }
+  .kld-field {
+    margin-bottom: 14px;
+  }
+  .kld-field .label {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .kld-field .value {
+    font-size: 14px;
+    color: #222;
+    padding: 8px 10px;
+    background: #f7f8f9;
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+  <div class="app-header">Sample App - 案件一覧</div>
+  <div class="app-body">
+    <div class="app-title">案件一覧</div>
+    <table>
+      <thead>
+        <tr><th>No.</th><th>案件名</th><th>担当者</th><th>フェーズ</th><th>金額</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>1</td><td><a class="record-link" href="#">サンプル案件A</a></td><td>山田 太郎</td><td>商談</td><td>¥1,200,000</td></tr>
+        <tr><td>2</td><td><a class="record-link" href="#">サンプル案件B</a></td><td>佐藤 花子</td><td>見積提示</td><td>¥820,000</td></tr>
+        <tr><td>3</td><td><a class="record-link" href="#">サンプル案件C</a></td><td>鈴木 一郎</td><td>受注</td><td>¥3,400,000</td></tr>
+        <tr><td>4</td><td><a class="record-link" href="#">サンプル案件D</a></td><td>山田 太郎</td><td>商談</td><td>¥560,000</td></tr>
+        <tr><td>5</td><td><a class="record-link" href="#">サンプル案件E</a></td><td>田中 次郎</td><td>失注</td><td>¥0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="kld-overlay">
+    <div class="kld-dialog">
+      <div class="kld-header">
+        <a class="kld-newtab" href="#">新しいタブで開く ↗</a>
+        <span class="kld-close">&times;</span>
+      </div>
+      <div class="kld-body">
+        <h2>サンプル案件A</h2>
+        <div class="kld-field"><div class="label">担当者</div><div class="value">山田 太郎</div></div>
+        <div class="kld-field"><div class="label">フェーズ</div><div class="value">商談</div></div>
+        <div class="kld-field"><div class="label">金額</div><div class="value">¥1,200,000</div></div>
+        <div class="kld-field"><div class="label">備考</div><div class="value">元の一覧画面を離れずにレコード内容を確認できます。</div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
