@@ -37,4 +37,5 @@ kintoneアプリ内のリンククリックを、ページ遷移ではなくダ�
 - リンク先が`X-Frame-Options`や`CSP(frame-ancestors)`でiframe埋め込みを拒否している外部サイトの場合、ダイアログ内が白紙になることがあります。その場合はダイアログの「新しいタブで開く」を使ってください。
 - `Ctrl`/`Cmd`/`Shift`/`Alt`を押しながらのクリック、ファイルダウンロードリンク(`download`属性)、`javascript:`/`#`/`mailto:`/`tel:`リンクは従来どおりの挙動のままです(ダイアログ化しません)。
 - URLに`/space`または`/portal`を含むリンク(スペース・ポータル画面)は、ダイアログ化せず通常どおり同じタブで遷移します。
+- kintone自体の「クリックジャッキング対策」機能により、ダイアログ(iframe)内のアプリ一覧画面で、一覧選択(ビュー切り替え)のサイドバーが表示されないことがあります。レコード一覧の閲覧自体は可能です。一覧を切り替えたい場合はダイアログの「新しいタブで開く」を使ってください。(参考: [kintone公式ヘルプ - Embedding Kintone screen in other web sites](https://get.kintone.help/general/en/admin/list_externalservices/cj_protection.html))
 - kintoneの画面リニューアル等でDOM構造が変わった場合、動作しなくなる可能性があります。
