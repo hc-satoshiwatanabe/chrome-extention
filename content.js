@@ -223,16 +223,22 @@
     iframe.className = "kld-iframe";
     iframe.src = url.href;
 
-    const viewSelect = buildViewSelect(url, (newHref) => {
-      iframe.src = newHref;
-    });
-
     const newTabLink = document.createElement("a");
     newTabLink.href = url.href;
     newTabLink.target = "_blank";
     newTabLink.rel = "noopener noreferrer";
     newTabLink.className = "kld-newtab";
     newTabLink.textContent = "新しいタブで開く ↗";
+    newTabLink.addEventListener("click", (e) => {
+      if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      e.preventDefault();
+      chrome.runtime.sendMessage({ type: "kld-open-new-tab-and-close", url: newTabLink.href });
+    });
+
+    const viewSelect = buildViewSelect(url, (newHref) => {
+      iframe.src = newHref;
+      newTabLink.href = newHref;
+    });
 
     const closeBtn = document.createElement("button");
     closeBtn.type = "button";
