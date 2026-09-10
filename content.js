@@ -125,6 +125,28 @@
     return { appId: match[1], viewId: url.searchParams.get("view") };
   }
 
+  const LAST_VIEW_KEY = "kintoneLinkDialogLastView";
+
+  function lastViewStorageKey(origin, appId) {
+    return `${origin}|${appId}`;
+  }
+
+  function getLastView(origin, appId) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get({ [LAST_VIEW_KEY]: {} }, (items) => {
+        resolve(items[LAST_VIEW_KEY][lastViewStorageKey(origin, appId)] || null);
+      });
+    });
+  }
+
+  function saveLastView(origin, appId, viewId) {
+    chrome.storage.local.get({ [LAST_VIEW_KEY]: {} }, (items) => {
+      const map = items[LAST_VIEW_KEY];
+      map[lastViewStorageKey(origin, appId)] = viewId;
+      chrome.storage.local.set({ [LAST_VIEW_KEY]: map });
+    });
+  }
+
   async function fetchAppViews(origin, appId) {
     const endpoint = `${origin}/k/v1/app/views.json?app=${encodeURIComponent(appId)}`;
     const res = await fetch(endpoint, {
@@ -174,7 +196,7 @@
     select.addEventListener("change", () => {
       const newUrl = new URL(url.href);
       newUrl.searchParams.set("view", select.value);
-      onChange(newUrl.href);
+      onChange(newUrl.href, select.value);
     });
 
     return select;
@@ -190,7 +212,7 @@
     }
   }
 
-  function openDialog(rawUrl) {
+  async function openDialog(rawUrl) {
     closeDialog();
 
     let url;
@@ -198,6 +220,14 @@
       url = new URL(rawUrl);
     } catch (e) {
       return;
+    }
+
+    const appListInfo = parseAppListUrl(url);
+    if (appListInfo && !appListInfo.viewId) {
+      const lastViewId = await getLastView(url.origin, appListInfo.appId);
+      if (lastViewId) {
+        url.searchParams.set("view", lastViewId);
+      }
     }
 
     const host = document.createElement("div");
@@ -235,9 +265,10 @@
       chrome.runtime.sendMessage({ type: "kld-open-new-tab-and-close", url: newTabLink.href });
     });
 
-    const viewSelect = buildViewSelect(url, (newHref) => {
+    const viewSelect = buildViewSelect(url, (newHref, viewId) => {
       iframe.src = newHref;
       newTabLink.href = newHref;
+      if (appListInfo) saveLastView(url.origin, appListInfo.appId, viewId);
     });
 
     const closeBtn = document.createElement("button");
