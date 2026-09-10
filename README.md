@@ -15,6 +15,7 @@ kintoneアプリ内のリンククリックを、ページ遷移ではなくダ�
 ## 使い方
 
 - kintone内のリンクをクリックすると、画面中央にダイアログでリンク先が表示されます
+- アプリの一覧画面(`/k/<appId>/`)をダイアログで開いた場合、ヘッダー左側にそのアプリの一覧(ビュー)を切り替えるプルダウンが表示されます(kintoneのREST API `views.json` から動的に取得しているため、どのアプリでも共通で動作します)
 - ダイアログ右上の「新しいタブで開く」で通常のタブ表示に切り替え可能
 - ダイアログ外側のクリック、または`Esc`キーで閉じます
 - 拡張機能アイコンをクリックすると、機能のON/OFFを切り替えられます(デフォルトON)
@@ -37,5 +38,6 @@ kintoneアプリ内のリンククリックを、ページ遷移ではなくダ�
 - リンク先が`X-Frame-Options`や`CSP(frame-ancestors)`でiframe埋め込みを拒否している外部サイトの場合、ダイアログ内が白紙になることがあります。その場合はダイアログの「新しいタブで開く」を使ってください。
 - `Ctrl`/`Cmd`/`Shift`/`Alt`を押しながらのクリック、ファイルダウンロードリンク(`download`属性)、`javascript:`/`#`/`mailto:`/`tel:`リンクは従来どおりの挙動のままです(ダイアログ化しません)。
 - URLに`/space`または`/portal`を含むリンク(スペース・ポータル画面)は、ダイアログ化せず通常どおり同じタブで遷移します。
-- kintone自体の「クリックジャッキング対策」機能により、ダイアログ(iframe)内のアプリ一覧画面で、一覧選択(ビュー切り替え)のサイドバーが表示されないことがあります。レコード一覧の閲覧自体は可能です。一覧を切り替えたい場合はダイアログの「新しいタブで開く」を使ってください。(参考: [kintone公式ヘルプ - Embedding Kintone screen in other web sites](https://get.kintone.help/general/en/admin/list_externalservices/cj_protection.html))
+- kintone自体の「クリックジャッキング対策」機能により、ダイアログ(iframe)内ではkintone標準の一覧選択サイドバーは表示されません(参考: [kintone公式ヘルプ - Embedding Kintone screen in other web sites](https://get.kintone.help/general/en/admin/list_externalservices/cj_protection.html))。この拡張機能では、その代わりにダイアログヘッダーへ独自の一覧切り替えプルダウンを実装することで回避しています。
+- 一覧切り替えプルダウンは`views.json` APIの読み取り権限が必要です。アプリの閲覧権限があれば通常は問題なく動作します。
 - kintoneの画面リニューアル等でDOM構造が変わった場合、動作しなくなる可能性があります。

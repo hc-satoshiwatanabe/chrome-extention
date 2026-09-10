@@ -55,6 +55,18 @@
     .kld-newtab:hover {
       text-decoration: underline;
     }
+    .kld-view-select {
+      font-size: 13px;
+      color: #333;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 3px 6px;
+      background: #fff;
+      max-width: 220px;
+    }
+    .kld-view-select:disabled {
+      color: #999;
+    }
     .kld-close {
       appearance: none;
       border: none;
@@ -104,6 +116,70 @@
     return /\/(space|portal)(\/|$|\?)/.test(url.pathname) || /\/(space|portal)(\/|$|\?)/.test(url.hash);
   }
 
+  // kintone's app list screen URL is always "/k/<appId>/" (optionally with
+  // a "?view=<viewId>" query). This convention is the same across every
+  // kintone app/tenant, so this parsing is not app-specific.
+  function parseAppListUrl(url) {
+    const match = url.pathname.match(/^\/k\/(\d+)\/?$/);
+    if (!match) return null;
+    return { appId: match[1], viewId: url.searchParams.get("view") };
+  }
+
+  async function fetchAppViews(origin, appId) {
+    const endpoint = `${origin}/k/v1/app/views.json?app=${encodeURIComponent(appId)}`;
+    const res = await fetch(endpoint, {
+      credentials: "same-origin",
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+    });
+    if (!res.ok) throw new Error(`views.json request failed: ${res.status}`);
+    const data = await res.json();
+    const views = Object.values(data.views || {});
+    views.sort((a, b) => Number(a.index) - Number(b.index));
+    return views;
+  }
+
+  function buildViewSelect(url, onChange) {
+    const parsed = parseAppListUrl(url);
+    if (!parsed) return null;
+
+    const select = document.createElement("select");
+    select.className = "kld-view-select";
+    select.disabled = true;
+
+    const loadingOption = document.createElement("option");
+    loadingOption.textContent = "一覧を読み込み中...";
+    select.appendChild(loadingOption);
+
+    fetchAppViews(url.origin, parsed.appId)
+      .then((views) => {
+        select.innerHTML = "";
+        for (const view of views) {
+          const option = document.createElement("option");
+          option.value = view.id;
+          option.textContent = view.name;
+          if (parsed.viewId ? view.id === parsed.viewId : false) {
+            option.selected = true;
+          }
+          select.appendChild(option);
+        }
+        select.disabled = false;
+      })
+      .catch(() => {
+        select.innerHTML = "";
+        const errorOption = document.createElement("option");
+        errorOption.textContent = "一覧を取得できませんでした";
+        select.appendChild(errorOption);
+      });
+
+    select.addEventListener("change", () => {
+      const newUrl = new URL(url.href);
+      newUrl.searchParams.set("view", select.value);
+      onChange(newUrl.href);
+    });
+
+    return select;
+  }
+
   function closeDialog() {
     const host = document.getElementById(HOST_ID);
     if (host) {
@@ -114,8 +190,15 @@
     }
   }
 
-  function openDialog(url) {
+  function openDialog(rawUrl) {
     closeDialog();
+
+    let url;
+    try {
+      url = new URL(rawUrl);
+    } catch (e) {
+      return;
+    }
 
     const host = document.createElement("div");
     host.id = HOST_ID;
@@ -136,8 +219,16 @@
     const header = document.createElement("div");
     header.className = "kld-header";
 
+    const iframe = document.createElement("iframe");
+    iframe.className = "kld-iframe";
+    iframe.src = url.href;
+
+    const viewSelect = buildViewSelect(url, (newHref) => {
+      iframe.src = newHref;
+    });
+
     const newTabLink = document.createElement("a");
-    newTabLink.href = url;
+    newTabLink.href = url.href;
     newTabLink.target = "_blank";
     newTabLink.rel = "noopener noreferrer";
     newTabLink.className = "kld-newtab";
@@ -150,12 +241,9 @@
     closeBtn.textContent = "×";
     closeBtn.addEventListener("click", closeDialog);
 
+    if (viewSelect) header.appendChild(viewSelect);
     header.appendChild(newTabLink);
     header.appendChild(closeBtn);
-
-    const iframe = document.createElement("iframe");
-    iframe.className = "kld-iframe";
-    iframe.src = url;
 
     dialog.appendChild(header);
     dialog.appendChild(iframe);
