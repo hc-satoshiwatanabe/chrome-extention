@@ -202,6 +202,32 @@
     return select;
   }
 
+  // Same-origin kintone pages always load fine, so we only need to guard
+  // against cross-origin destinations refusing to be framed
+  // (X-Frame-Options / CSP frame-ancestors). There is no reliable JS event
+  // for that refusal, so we use a heuristic: after a delay, a genuinely
+  // loaded cross-origin document is inaccessible from here (throws), while
+  // a refused/blocked frame is left showing nothing we can't reach (no
+  // throw, blank). This can occasionally misfire on a slow-loading site,
+  // but the manual "open in new tab" link remains as a fallback either way.
+  function scheduleFrameBlockCheck(host, iframe, targetHref) {
+    setTimeout(() => {
+      if (!host.isConnected) return;
+      let blocked = false;
+      try {
+        const win = iframe.contentWindow;
+        const href = win && win.location && win.location.href;
+        if (!href || href === "about:blank") blocked = true;
+      } catch (e) {
+        blocked = false;
+      }
+      if (blocked) {
+        chrome.runtime.sendMessage({ type: "kld-open-new-tab", url: targetHref });
+        closeDialog();
+      }
+    }, 3000);
+  }
+
   function closeDialog() {
     const host = document.getElementById(HOST_ID);
     if (host) {
@@ -252,6 +278,10 @@
     const iframe = document.createElement("iframe");
     iframe.className = "kld-iframe";
     iframe.src = url.href;
+
+    if (url.origin !== location.origin) {
+      scheduleFrameBlockCheck(host, iframe, url.href);
+    }
 
     const newTabLink = document.createElement("a");
     newTabLink.href = url.href;
