@@ -1,12 +1,26 @@
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (!message) return;
+function normalizeUrl(href) {
+  try {
+    return new URL(href).href;
+  } catch (e) {
+    return href;
+  }
+}
 
-  if (message.type === "kld-open-new-tab-and-close" && sender.tab && sender.tab.id != null) {
-    const originTabId = sender.tab.id;
-    chrome.tabs.create({ url: message.url }).then(() => {
-      chrome.tabs.remove(originTabId);
-    });
-  } else if (message.type === "kld-open-new-tab") {
-    chrome.tabs.create({ url: message.url });
+async function focusExistingTabOrCreate(url) {
+  const target = normalizeUrl(url);
+  const tabs = await chrome.tabs.query({});
+  const existing = tabs.find((tab) => tab.url && normalizeUrl(tab.url) === target);
+
+  if (existing) {
+    await chrome.tabs.update(existing.id, { active: true });
+    await chrome.windows.update(existing.windowId, { focused: true });
+  } else {
+    await chrome.tabs.create({ url });
+  }
+}
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message && message.type === "kld-open-new-tab" && message.url) {
+    focusExistingTabOrCreate(message.url);
   }
 });

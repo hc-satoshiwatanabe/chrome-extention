@@ -2,21 +2,17 @@
   "use strict";
 
   const STORAGE_KEY = "kintoneLinkDialogEnabled";
-  const CLOSE_ORIGINAL_TAB_KEY = "kintoneLinkDialogCloseOriginalTab";
   const HOST_ID = "kintone-link-dialog-host";
 
   let enabled = true;
-  let closeOriginalTabEnabled = false;
 
-  chrome.storage.sync.get({ [STORAGE_KEY]: true, [CLOSE_ORIGINAL_TAB_KEY]: false }, (items) => {
+  chrome.storage.sync.get({ [STORAGE_KEY]: true }, (items) => {
     enabled = items[STORAGE_KEY];
-    closeOriginalTabEnabled = items[CLOSE_ORIGINAL_TAB_KEY];
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "sync") return;
     if (STORAGE_KEY in changes) enabled = changes[STORAGE_KEY].newValue;
-    if (CLOSE_ORIGINAL_TAB_KEY in changes) closeOriginalTabEnabled = changes[CLOSE_ORIGINAL_TAB_KEY].newValue;
   });
 
   const STYLE = `
@@ -295,8 +291,7 @@
     newTabLink.addEventListener("click", (e) => {
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
-      const messageType = closeOriginalTabEnabled ? "kld-open-new-tab-and-close" : "kld-open-new-tab";
-      chrome.runtime.sendMessage({ type: messageType, url: newTabLink.href });
+      chrome.runtime.sendMessage({ type: "kld-open-new-tab", url: newTabLink.href });
     });
 
     const viewSelect = buildViewSelect(url, (newHref, viewId) => {
