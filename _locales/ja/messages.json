@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "Link Dialog for kintone",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "kintone内のリンククリックをダイアログ(iframe)表示に差し替える非公式の拡張機能です。",
+    "description": "Extension description"
+  }
+}

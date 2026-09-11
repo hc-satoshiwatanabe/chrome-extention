@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "Link Dialog for kintone",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Replaces link-click navigation inside kintone apps with an in-page dialog (unofficial, independently developed).",
+    "description": "Extension description"
+  }
+}
