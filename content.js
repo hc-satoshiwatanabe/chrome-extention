@@ -52,11 +52,13 @@
       background: #f4f4f4;
       border-bottom: 1px solid #ddd;
       flex: 0 0 auto;
+      cursor: move;
     }
     .kld-newtab {
       font-size: 13px;
       color: #3498db;
       text-decoration: none;
+      cursor: pointer;
     }
     .kld-newtab:hover {
       text-decoration: underline;
@@ -69,6 +71,7 @@
       padding: 3px 6px;
       background: #fff;
       max-width: 220px;
+      cursor: pointer;
     }
     .kld-view-select:disabled {
       color: #999;
@@ -231,11 +234,75 @@
     return select;
   }
 
+  // Lets the dialog be repositioned by dragging its header. The overlay
+  // centers the dialog via flexbox only until the first drag: once dragged,
+  // the dialog switches to an explicit fixed position so it stays where the
+  // user left it (a fresh dialog for the next link click still starts centered).
+  function makeDraggable(dialog, handle) {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+    let previousUserSelect = "";
+
+    function onMouseDown(e) {
+      if (e.button !== 0) return;
+      if (e.target.closest("a, button, select")) return;
+
+      const rect = dialog.getBoundingClientRect();
+      dialog.style.position = "fixed";
+      dialog.style.margin = "0";
+      dialog.style.left = `${rect.left}px`;
+      dialog.style.top = `${rect.top}px`;
+
+      dragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startLeft = rect.left;
+      startTop = rect.top;
+      previousUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    }
+
+    function onMouseMove(e) {
+      if (!dragging) return;
+      const margin = 24;
+      const newLeft = clamp(startLeft + (e.clientX - startX), margin - dialog.offsetWidth, window.innerWidth - margin);
+      const newTop = clamp(startTop + (e.clientY - startY), 0, window.innerHeight - margin);
+      dialog.style.left = `${newLeft}px`;
+      dialog.style.top = `${newTop}px`;
+    }
+
+    function onMouseUp() {
+      if (!dragging) return;
+      dragging = false;
+      document.body.style.userSelect = previousUserSelect;
+    }
+
+    function clamp(value, min, max) {
+      return Math.min(Math.max(value, min), max);
+    }
+
+    handle.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove, true);
+    document.addEventListener("mouseup", onMouseUp, true);
+
+    return function cleanup() {
+      document.removeEventListener("mousemove", onMouseMove, true);
+      document.removeEventListener("mouseup", onMouseUp, true);
+    };
+  }
+
   function closeDialog() {
     const host = document.getElementById(HOST_ID);
     if (host) {
       if (host._onKeydown) {
         document.removeEventListener("keydown", host._onKeydown, true);
+      }
+      if (host._cleanupDrag) {
+        host._cleanupDrag();
       }
       host.remove();
     }
@@ -330,6 +397,7 @@
     }
     document.addEventListener("keydown", onKeydown, true);
     host._onKeydown = onKeydown;
+    host._cleanupDrag = makeDraggable(dialog, header);
   }
 
   document.addEventListener(
