@@ -6,14 +6,21 @@
 
   let enabled = true;
 
-  chrome.storage.sync.get({ [STORAGE_KEY]: true }, (items) => {
-    enabled = items[STORAGE_KEY];
-  });
+  try {
+    chrome.storage.sync.get({ [STORAGE_KEY]: true }, (items) => {
+      if (chrome.runtime.lastError) return;
+      enabled = items[STORAGE_KEY];
+    });
 
-  chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "sync") return;
-    if (STORAGE_KEY in changes) enabled = changes[STORAGE_KEY].newValue;
-  });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "sync") return;
+      if (STORAGE_KEY in changes) enabled = changes[STORAGE_KEY].newValue;
+    });
+  } catch (e) {
+    // extension context invalidated (stale content script from before a
+    // reload/update) - the dialog feature just won't activate on this page
+    // until it's reloaded, but nothing throws.
+  }
 
   const STYLE = `
     .kld-overlay {
@@ -134,20 +141,39 @@
     return `${origin}|${appId}`;
   }
 
+  // The extension can be reloaded/updated while a kintone tab stays open;
+  // that tab's content script then holds a stale, invalidated extension
+  // context, and any chrome.* call throws "Extension context invalidated."
+  // These wrappers degrade gracefully (no-op / resolve null) instead of
+  // surfacing that as an uncaught error - the user only needs to reload
+  // the tab to get the extension working there again.
   function getLastView(origin, appId) {
     return new Promise((resolve) => {
-      chrome.storage.local.get({ [LAST_VIEW_KEY]: {} }, (items) => {
-        resolve(items[LAST_VIEW_KEY][lastViewStorageKey(origin, appId)] || null);
-      });
+      try {
+        chrome.storage.local.get({ [LAST_VIEW_KEY]: {} }, (items) => {
+          if (chrome.runtime.lastError) {
+            resolve(null);
+            return;
+          }
+          resolve(items[LAST_VIEW_KEY][lastViewStorageKey(origin, appId)] || null);
+        });
+      } catch (e) {
+        resolve(null);
+      }
     });
   }
 
   function saveLastView(origin, appId, viewId) {
-    chrome.storage.local.get({ [LAST_VIEW_KEY]: {} }, (items) => {
-      const map = items[LAST_VIEW_KEY];
-      map[lastViewStorageKey(origin, appId)] = viewId;
-      chrome.storage.local.set({ [LAST_VIEW_KEY]: map });
-    });
+    try {
+      chrome.storage.local.get({ [LAST_VIEW_KEY]: {} }, (items) => {
+        if (chrome.runtime.lastError) return;
+        const map = items[LAST_VIEW_KEY];
+        map[lastViewStorageKey(origin, appId)] = viewId;
+        chrome.storage.local.set({ [LAST_VIEW_KEY]: map });
+      });
+    } catch (e) {
+      // extension context invalidated - ignore, nothing to persist to
+    }
   }
 
   async function fetchAppViews(origin, appId) {
@@ -265,7 +291,12 @@
     newTabLink.addEventListener("click", (e) => {
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
-      chrome.runtime.sendMessage({ type: "kld-open-new-tab", url: newTabLink.href });
+      try {
+        chrome.runtime.sendMessage({ type: "kld-open-new-tab", url: newTabLink.href }).catch(() => {});
+      } catch (err) {
+        // extension context invalidated - fall back to a plain new-tab open
+        window.open(newTabLink.href, "_blank", "noopener,noreferrer");
+      }
     });
 
     const viewSelect = buildViewSelect(url, (newHref, viewId) => {
@@ -308,7 +339,7 @@
       if (!shouldIntercept(anchor, event)) return;
       event.preventDefault();
       event.stopPropagation();
-      openDialog(anchor.href);
+      openDialog(anchor.href).catch(() => {});
     },
     true
   );
