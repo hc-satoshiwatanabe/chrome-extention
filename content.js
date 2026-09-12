@@ -3,6 +3,8 @@
 
   const STORAGE_KEY = "kintoneLinkDialogEnabled";
   const HOST_ID = "kintone-link-dialog-host";
+  const PARENT_PARAM = "_kldParent";
+  const isTopFrame = window.self === window.top;
 
   let enabled = true;
 
@@ -23,27 +25,103 @@
   }
 
   // Tracks the "current" node in the navigation-path graph for this tab, so
-  // consecutive dialog opens chain together (path.html / background.js).
+  // consecutive dialog opens chain together (map.html / background.js).
   // Stays null (a fresh root) unless this tab was opened via the dialog's
-  // "open in new tab" action from another tracked node.
+  // "open in new tab" action from another tracked node. Only meaningful in
+  // the top frame - the dialog's own iframe tracks its path separately,
+  // seeded from the top frame via a "_kldParent" query param (see below).
   let currentNodeId = null;
 
-  (async () => {
-    try {
-      const resp = await chrome.runtime.sendMessage({ type: "kld-get-pending-parent" });
-      if (resp && resp.parentId) currentNodeId = resp.parentId;
-    } catch (e) {
-      // extension context invalidated - this tab just starts as a fresh root
-    }
-  })();
+  if (isTopFrame) {
+    (async () => {
+      try {
+        const resp = await chrome.runtime.sendMessage({ type: "kld-get-pending-parent" });
+        if (resp && resp.parentId) currentNodeId = resp.parentId;
+      } catch (e) {
+        // extension context invalidated - this tab just starts as a fresh root
+      }
+    })();
+  }
 
-  async function recordNode(url) {
+  async function recordNode(url, parentId) {
     try {
-      const resp = await chrome.runtime.sendMessage({ type: "kld-record-node", url, parentId: currentNodeId });
-      if (resp && resp.nodeId) currentNodeId = resp.nodeId;
+      const resp = await chrome.runtime.sendMessage({ type: "kld-record-node", url, parentId });
+      return (resp && resp.nodeId) || null;
     } catch (e) {
       // extension context invalidated - path tracking just stops silently
+      return null;
     }
+  }
+
+  function withParentParam(href, parentId) {
+    if (!parentId) return href;
+    try {
+      const u = new URL(href);
+      u.searchParams.set(PARENT_PARAM, parentId);
+      return u.href;
+    } catch (e) {
+      return href;
+    }
+  }
+
+  // Runs only inside the dialog's own iframe (not the top frame). kintone
+  // handles most in-app navigation (record <-> list <-> related record)
+  // through its own SPA router (pushState/hash changes) rather than full
+  // page loads, so we track by watching the URL change instead of clicks -
+  // this is the only way to see navigation that happens *inside* the
+  // dialog. A real full-page navigation inside the frame (e.g. jumping to a
+  // different app) still starts a fresh, unparented branch, since the
+  // destination URL has no way to carry our "_kldParent" marker.
+  function initFrameTracking() {
+    let frameNodeId = null;
+    let lastTrackedHref = null;
+
+    try {
+      const initialUrl = new URL(location.href);
+      const parent = initialUrl.searchParams.get(PARENT_PARAM);
+      if (parent) frameNodeId = parent;
+      initialUrl.searchParams.delete(PARENT_PARAM);
+      lastTrackedHref = initialUrl.href;
+    } catch (e) {
+      // leave lastTrackedHref null - the first detected change will just be recorded as-is
+    }
+
+    async function trackIfChanged() {
+      if (!enabled) return;
+      let current;
+      try {
+        current = new URL(location.href);
+      } catch (e) {
+        return;
+      }
+      current.searchParams.delete(PARENT_PARAM);
+      if (current.origin !== location.origin) return;
+      if (isExcludedPath(current)) return;
+      const normalized = current.href;
+      if (normalized === lastTrackedHref) return;
+      lastTrackedHref = normalized;
+      const nodeId = await recordNode(normalized, frameNodeId);
+      if (nodeId) frameNodeId = nodeId;
+    }
+
+    const originalPushState = history.pushState.bind(history);
+    const originalReplaceState = history.replaceState.bind(history);
+    history.pushState = function (...args) {
+      const result = originalPushState(...args);
+      trackIfChanged();
+      return result;
+    };
+    history.replaceState = function (...args) {
+      const result = originalReplaceState(...args);
+      trackIfChanged();
+      return result;
+    };
+    window.addEventListener("popstate", trackIfChanged);
+    window.addEventListener("hashchange", trackIfChanged);
+  }
+
+  if (!isTopFrame) {
+    initFrameTracking();
   }
 
   const STYLE = `
@@ -350,7 +428,9 @@
       }
     }
 
-    await recordNode(url.href);
+    const newNodeId = await recordNode(url.href, currentNodeId);
+    if (newNodeId) currentNodeId = newNodeId;
+    const dialogNodeId = currentNodeId;
 
     const host = document.createElement("div");
     host.id = HOST_ID;
@@ -373,7 +453,7 @@
 
     const iframe = document.createElement("iframe");
     iframe.className = "kld-iframe";
-    iframe.src = url.href;
+    iframe.src = withParentParam(url.href, dialogNodeId);
 
     const newTabLink = document.createElement("a");
     newTabLink.href = url.href;
@@ -393,7 +473,7 @@
     });
 
     const viewSelect = buildViewSelect(url, (newHref, viewId) => {
-      iframe.src = newHref;
+      iframe.src = withParentParam(newHref, dialogNodeId);
       newTabLink.href = newHref;
       if (appListInfo) saveLastView(url.origin, appListInfo.appId, viewId);
     });
@@ -426,15 +506,17 @@
     host._cleanupDrag = makeDraggable(dialog, header);
   }
 
-  document.addEventListener(
-    "click",
-    (event) => {
-      const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
-      if (!shouldIntercept(anchor, event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      openDialog(anchor.href).catch(() => {});
-    },
-    true
-  );
+  if (isTopFrame) {
+    document.addEventListener(
+      "click",
+      (event) => {
+        const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        if (!shouldIntercept(anchor, event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openDialog(anchor.href).catch(() => {});
+      },
+      true
+    );
+  }
 })();
