@@ -83,16 +83,49 @@ function fetchTitleFieldCode(origin, appId) {
           // fall through to the AUTO-mode heuristic below
         }
 
+        // AUTO mode: kintone picks the first single-line text field *in form
+        // layout order*, not field-creation order, so we need form/layout.json
+        // (visual order) cross-referenced against form/fields.json (types).
         try {
-          const res = await fetch(`${origin}/k/v1/app/form/fields.json?app=${encodeURIComponent(appId)}`, {
-            credentials: "same-origin",
-            headers: { "X-Requested-With": "XMLHttpRequest" },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const entry = Object.entries(data.properties || {}).find(([, field]) => field.type === "SINGLE_LINE_TEXT");
-            if (entry) return entry[0];
+          const [layoutRes, fieldsRes] = await Promise.all([
+            fetch(`${origin}/k/v1/app/form/layout.json?app=${encodeURIComponent(appId)}`, {
+              credentials: "same-origin",
+              headers: { "X-Requested-With": "XMLHttpRequest" },
+            }),
+            fetch(`${origin}/k/v1/app/form/fields.json?app=${encodeURIComponent(appId)}`, {
+              credentials: "same-origin",
+              headers: { "X-Requested-With": "XMLHttpRequest" },
+            }),
+          ]);
+          const properties = fieldsRes.ok ? (await fieldsRes.json()).properties || {} : {};
+
+          if (layoutRes.ok && fieldsRes.ok) {
+            const layoutData = await layoutRes.json();
+
+            const orderedCodes = [];
+            const walk = (items) => {
+              for (const item of items || []) {
+                if (item.type === "SUBTABLE") continue;
+                if (item.type === "GROUP") {
+                  walk(item.layout);
+                  continue;
+                }
+                for (const f of item.fields || []) {
+                  if (f.code) orderedCodes.push(f.code);
+                }
+              }
+            };
+            walk(layoutData.layout);
+
+            const firstTextCode = orderedCodes.find((code) => properties[code] && properties[code].type === "SINGLE_LINE_TEXT");
+            if (firstTextCode) return firstTextCode;
           }
+
+          // layout.json unavailable/unexpected shape - fall back to
+          // fields.json alone (property order isn't guaranteed to match the
+          // visual layout, but it's better than nothing).
+          const entry = Object.entries(properties).find(([, field]) => field.type === "SINGLE_LINE_TEXT");
+          if (entry) return entry[0];
         } catch (e) {
           // no luck - record nodes will just keep their "レコード#id" label
         }
