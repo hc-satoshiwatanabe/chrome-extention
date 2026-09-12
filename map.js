@@ -106,6 +106,82 @@ function truncateLabel(label) {
   return label.length > 34 ? `${label.slice(0, 33)}…` : label;
 }
 
+const titleFieldCache = new Map();
+
+// Mirrors how kintone itself picks a record's display title: the app's
+// configured "titleField" setting if one was manually chosen, otherwise the
+// first single-line text field (kintone's own default when set to "AUTO").
+async function fetchTitleFieldCode(origin, appId) {
+  const key = `${origin}|${appId}`;
+  if (!titleFieldCache.has(key)) {
+    titleFieldCache.set(
+      key,
+      (async () => {
+        try {
+          const res = await fetch(`${origin}/k/v1/app/settings.json?app=${encodeURIComponent(appId)}`, {
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          });
+          if (res.ok) {
+            const settings = await res.json();
+            const tf = settings.titleField;
+            if (tf && tf.selectionMode === "MANUAL" && tf.code) {
+              return tf.code;
+            }
+          }
+        } catch (e) {
+          // fall through to the AUTO-mode heuristic below
+        }
+
+        try {
+          const res = await fetch(`${origin}/k/v1/app/form/fields.json?app=${encodeURIComponent(appId)}`, {
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const entry = Object.entries(data.properties || {}).find(([, field]) => field.type === "SINGLE_LINE_TEXT");
+            if (entry) return entry[0];
+          }
+        } catch (e) {
+          // no luck - record nodes will just keep their "レコード#id" label
+        }
+        return null;
+      })()
+    );
+  }
+  return titleFieldCache.get(key);
+}
+
+const recordTitleCache = new Map();
+
+function fetchRecordTitle(origin, appId, recordId) {
+  const key = `${origin}|${appId}|${recordId}`;
+  if (!recordTitleCache.has(key)) {
+    recordTitleCache.set(
+      key,
+      (async () => {
+        const fieldCode = await fetchTitleFieldCode(origin, appId);
+        if (!fieldCode) return null;
+        try {
+          const res = await fetch(`${origin}/k/v1/record.json?app=${encodeURIComponent(appId)}&id=${encodeURIComponent(recordId)}`, {
+            credentials: "same-origin",
+            headers: { "X-Requested-With": "XMLHttpRequest" },
+          });
+          if (!res.ok) return null;
+          const data = await res.json();
+          const field = data.record && data.record[fieldCode];
+          const value = field && field.value;
+          return typeof value === "string" && value.trim() ? value : null;
+        } catch (e) {
+          return null;
+        }
+      })()
+    );
+  }
+  return recordTitleCache.get(key);
+}
+
 function svgEl(tag, attrs) {
   const el = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -209,6 +285,15 @@ async function render() {
       const fullLabel = `${appName}${suffix}`;
       textEl.textContent = truncateLabel(fullLabel);
       titleEl.textContent = `${fullLabel}\n${titleEl.textContent}`;
+
+      if (info.kind === "record" && info.recordId) {
+        fetchRecordTitle(info.origin, info.appId, info.recordId).then((titleValue) => {
+          if (!titleValue) return;
+          const betterLabel = `${appName} - ${titleValue}`;
+          textEl.textContent = truncateLabel(betterLabel);
+          titleEl.textContent = `${betterLabel}\n${titleEl.textContent}`;
+        });
+      }
     });
   }
 }
@@ -218,4 +303,18 @@ document.getElementById("clear").addEventListener("click", async () => {
   render();
 });
 
-render();
+const REFRESH_INTERVAL_MS = 5000;
+let isRendering = false;
+
+async function renderIfIdle() {
+  if (isRendering) return;
+  isRendering = true;
+  try {
+    await render();
+  } finally {
+    isRendering = false;
+  }
+}
+
+renderIfIdle();
+setInterval(renderIfIdle, REFRESH_INTERVAL_MS);
