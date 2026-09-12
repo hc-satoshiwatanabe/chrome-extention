@@ -240,6 +240,33 @@ drawerOpenBtn.addEventListener("click", () => {
   if (node) openUrl(node.url);
 });
 
+// Removes just this one node, reconnecting its children to its own parent
+// so the rest of the path stays joined together (rather than cascading the
+// delete to the whole subtree, or leaving the children as orphaned roots).
+async function deleteNode(id) {
+  const { [GRAPH_KEY]: graph } = await chrome.storage.local.get({ [GRAPH_KEY]: { nodes: {} } });
+  const target = graph.nodes[id];
+  if (!target) return;
+
+  const replacementParentId = target.parentId && graph.nodes[target.parentId] ? target.parentId : null;
+  for (const node of Object.values(graph.nodes)) {
+    if (node.parentId === id) node.parentId = replacementParentId;
+  }
+  delete graph.nodes[id];
+
+  await chrome.storage.local.set({ [GRAPH_KEY]: graph });
+}
+
+document.getElementById("drawerDeleteBtn").addEventListener("click", async () => {
+  const id = drawerNodeId;
+  const node = id && latestNodes[id];
+  if (!node) return;
+  if (!confirm(`このノードを削除しますか？\n${drawerTitleEl.textContent}\n\n(子にあたるノードは、このノードの親に付け替えられます)`)) return;
+  await deleteNode(id);
+  hideDrawer();
+  renderIfIdle();
+});
+
 let cy = null;
 let renderVersion = 0;
 
