@@ -430,7 +430,6 @@ async function render() {
       padding: 30,
       spacingFactor: 1.25,
     },
-    wheelSensitivity: 0.3,
   });
   cy = thisCy;
 
