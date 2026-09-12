@@ -1,58 +1,8 @@
 const GRAPH_KEY = "kintoneLinkDialogGraph";
-const SVG_NS = "http://www.w3.org/2000/svg";
-
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 32;
-const LEVEL_GAP = 60;
-const ROW_GAP = 12;
 
 async function loadNodes() {
   const { [GRAPH_KEY]: graph } = await chrome.storage.local.get({ [GRAPH_KEY]: { nodes: {} } });
   return graph.nodes || {};
-}
-
-function buildChildren(nodes) {
-  const children = {};
-  const roots = [];
-  for (const [id, node] of Object.entries(nodes)) {
-    if (node.parentId && nodes[node.parentId]) {
-      (children[node.parentId] = children[node.parentId] || []).push(id);
-    } else {
-      roots.push(id);
-    }
-  }
-  for (const key in children) {
-    children[key].sort((a, b) => nodes[a].createdAt - nodes[b].createdAt);
-  }
-  roots.sort((a, b) => nodes[a].createdAt - nodes[b].createdAt);
-  return { roots, children };
-}
-
-// Simple top-down tree layout: leaves are stacked in visiting order, each
-// parent is centered on the vertical span of its children.
-function layout(nodes, roots, children) {
-  const positions = {};
-  let row = 0;
-
-  function place(id, depth) {
-    const kids = children[id] || [];
-    if (kids.length === 0) {
-      positions[id] = { x: depth * (NODE_WIDTH + LEVEL_GAP), y: row * (NODE_HEIGHT + ROW_GAP) };
-      row++;
-    } else {
-      const ys = kids.map((k) => {
-        place(k, depth + 1);
-        return positions[k].y;
-      });
-      positions[id] = {
-        x: depth * (NODE_WIDTH + LEVEL_GAP),
-        y: (Math.min(...ys) + Math.max(...ys)) / 2,
-      };
-    }
-  }
-
-  for (const r of roots) place(r, 0);
-  return positions;
 }
 
 function shortLabel(url) {
@@ -62,6 +12,10 @@ function shortLabel(url) {
   } catch (e) {
     return url;
   }
+}
+
+function truncateLabel(label) {
+  return label.length > 40 ? `${label.slice(0, 39)}…` : label;
 }
 
 // kintone's app list ("/k/<appId>/") and record detail ("/k/<appId>/show",
@@ -102,16 +56,12 @@ function fetchAppName(origin, appId) {
   return appNameCache.get(key);
 }
 
-function truncateLabel(label) {
-  return label.length > 34 ? `${label.slice(0, 33)}…` : label;
-}
-
 const titleFieldCache = new Map();
 
 // Mirrors how kintone itself picks a record's display title: the app's
 // configured "titleField" setting if one was manually chosen, otherwise the
 // first single-line text field (kintone's own default when set to "AUTO").
-async function fetchTitleFieldCode(origin, appId) {
+function fetchTitleFieldCode(origin, appId) {
   const key = `${origin}|${appId}`;
   if (!titleFieldCache.has(key)) {
     titleFieldCache.set(
@@ -182,116 +132,132 @@ function fetchRecordTitle(origin, appId, recordId) {
   return recordTitleCache.get(key);
 }
 
-function svgEl(tag, attrs) {
-  const el = document.createElementNS(SVG_NS, tag);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
-  return el;
-}
-
 function openUrl(url) {
   chrome.tabs.create({ url });
 }
 
+let cy = null;
+let renderVersion = 0;
+
+const CY_STYLE = [
+  {
+    selector: "node",
+    style: {
+      shape: "round-rectangle",
+      "background-color": "#ffffff",
+      "border-color": "#3498db",
+      "border-width": 1.5,
+      label: "data(label)",
+      "text-valign": "center",
+      "text-halign": "center",
+      "font-size": 11,
+      color: "#222",
+      padding: "10px",
+      width: "label",
+      height: "label",
+      "text-wrap": "wrap",
+      "text-max-width": "150px",
+      "text-overflow-wrap": "anywhere",
+    },
+  },
+  {
+    selector: "node:active",
+    style: { "overlay-opacity": 0.15, "overlay-color": "#3498db" },
+  },
+  {
+    selector: "edge",
+    style: {
+      width: 1.5,
+      "line-color": "#b8c4cc",
+      "target-arrow-color": "#b8c4cc",
+      "target-arrow-shape": "triangle",
+      "arrow-scale": 0.8,
+      "curve-style": "bezier",
+    },
+  },
+];
+
 async function render() {
+  const myVersion = ++renderVersion;
   const nodes = await loadNodes();
   const ids = Object.keys(nodes);
+
   const empty = document.getElementById("empty");
-  const scroll = document.getElementById("scroll");
-  const svg = document.getElementById("canvas");
-  svg.innerHTML = "";
+  const container = document.getElementById("cy");
 
   if (ids.length === 0) {
     empty.hidden = false;
-    scroll.hidden = true;
+    container.hidden = true;
+    if (cy) {
+      cy.destroy();
+      cy = null;
+    }
     return;
   }
   empty.hidden = true;
-  scroll.hidden = false;
+  container.hidden = false;
 
-  const { roots, children } = buildChildren(nodes);
-  const positions = layout(nodes, roots, children);
-
-  let maxX = 0;
-  let maxY = 0;
-  for (const pos of Object.values(positions)) {
-    maxX = Math.max(maxX, pos.x);
-    maxY = Math.max(maxY, pos.y);
+  const previousView = cy ? { zoom: cy.zoom(), pan: cy.pan() } : null;
+  if (cy) {
+    cy.destroy();
+    cy = null;
   }
-  const width = maxX + NODE_WIDTH + 40;
-  const height = maxY + NODE_HEIGHT + 40;
-  svg.setAttribute("width", width);
-  svg.setAttribute("height", height);
-  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
 
-  const edgeLayer = svgEl("g", {});
-  const nodeLayer = svgEl("g", {});
-  svg.appendChild(edgeLayer);
-  svg.appendChild(nodeLayer);
-
-  for (const [parentId, kidIds] of Object.entries(children)) {
-    const p = positions[parentId];
-    for (const kidId of kidIds) {
-      const c = positions[kidId];
-      const x1 = p.x + NODE_WIDTH + 20;
-      const y1 = p.y + NODE_HEIGHT / 2 + 20;
-      const x2 = c.x + 20;
-      const y2 = c.y + NODE_HEIGHT / 2 + 20;
-      const midX = (x1 + x2) / 2;
-      const path = svgEl("path", {
-        class: "edge",
-        d: `M ${x1} ${y1} C ${midX} ${y1}, ${midX} ${y2}, ${x2} ${y2}`,
-      });
-      edgeLayer.appendChild(path);
+  const elements = [];
+  const rootIds = [];
+  for (const [id, node] of Object.entries(nodes)) {
+    elements.push({ data: { id, url: node.url, label: truncateLabel(shortLabel(node.url)) } });
+  }
+  for (const [id, node] of Object.entries(nodes)) {
+    if (node.parentId && nodes[node.parentId]) {
+      elements.push({ data: { id: `e_${node.parentId}_${id}`, source: node.parentId, target: id } });
+    } else {
+      rootIds.push(id);
     }
   }
 
-  const labelTargets = [];
+  const thisCy = cytoscape({
+    container,
+    elements,
+    style: CY_STYLE,
+    layout: {
+      name: "breadthfirst",
+      directed: true,
+      roots: rootIds,
+      padding: 30,
+      spacingFactor: 1.25,
+    },
+    wheelSensitivity: 0.3,
+  });
+  cy = thisCy;
 
-  for (const id of ids) {
-    const pos = positions[id];
-    if (!pos) continue;
-    const node = nodes[id];
-    const g = svgEl("g", { transform: `translate(${pos.x + 20}, ${pos.y + 20})`, style: "cursor: pointer;" });
-    const rect = svgEl("rect", {
-      class: "node-box",
-      width: NODE_WIDTH,
-      height: NODE_HEIGHT,
-      rx: 6,
-    });
-    const text = svgEl("text", {
-      class: "node-label",
-      x: 8,
-      y: NODE_HEIGHT / 2 + 4,
-    });
-    text.textContent = truncateLabel(shortLabel(node.url));
+  thisCy.on("tap", "node", (evt) => {
+    const url = evt.target.data("url");
+    if (url) openUrl(url);
+  });
 
-    const title = svgEl("title", {});
-    title.textContent = node.url;
-
-    g.appendChild(rect);
-    g.appendChild(text);
-    g.appendChild(title);
-    g.addEventListener("click", () => openUrl(node.url));
-    nodeLayer.appendChild(g);
-
-    const info = parseAppInfo(node.url);
-    if (info) labelTargets.push({ textEl: text, titleEl: title, info });
+  if (previousView) {
+    thisCy.zoom(previousView.zoom);
+    thisCy.pan(previousView.pan);
   }
 
-  for (const { textEl, titleEl, info } of labelTargets) {
+  for (const [id, node] of Object.entries(nodes)) {
+    const info = parseAppInfo(node.url);
+    if (!info) continue;
+
     fetchAppName(info.origin, info.appId).then((appName) => {
-      if (!appName) return;
+      if (!appName || myVersion !== renderVersion) return;
+      const ele = thisCy.getElementById(id);
+      if (ele.empty()) return;
       const suffix = info.kind === "record" ? ` - レコード#${info.recordId || "?"}` : " - 一覧";
-      const fullLabel = `${appName}${suffix}`;
-      textEl.textContent = truncateLabel(fullLabel);
-      titleEl.textContent = `${fullLabel}\n${titleEl.textContent}`;
+      ele.data("label", truncateLabel(`${appName}${suffix}`));
 
       if (info.kind === "record" && info.recordId) {
         fetchRecordTitle(info.origin, info.appId, info.recordId).then((titleValue) => {
-          if (!titleValue) return;
-          const betterLabel = `${appName} - ${titleValue}`;
-          textEl.textContent = truncateLabel(betterLabel);
-          titleEl.textContent = `${betterLabel}\n${titleEl.textContent}`;
+          if (!titleValue || myVersion !== renderVersion) return;
+          const ele2 = thisCy.getElementById(id);
+          if (ele2.empty()) return;
+          ele2.data("label", truncateLabel(`${appName} - ${titleValue}`));
         });
       }
     });

@@ -4,8 +4,9 @@
   <meta charset="UTF-8" />
   <title>Link Dialog for kintone - 経路マップ</title>
   <style>
-    body {
+    html, body {
       margin: 0;
+      height: 100%;
       font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
       background: #f4f6f8;
       color: #222;
@@ -39,24 +40,9 @@
       color: #777;
       font-size: 14px;
     }
-    #scroll {
-      overflow: auto;
+    #cy {
       width: 100%;
       height: calc(100vh - 49px);
-    }
-    .node-box {
-      fill: #fff;
-      stroke: #3498db;
-      stroke-width: 1.5;
-    }
-    .node-label {
-      font-size: 12px;
-      fill: #222;
-    }
-    .edge {
-      stroke: #b8c4cc;
-      stroke-width: 1.5;
-      fill: none;
     }
   </style>
 </head>
@@ -65,10 +51,9 @@
     <h1>Link Dialog for kintone - 経路マップ</h1>
     <button id="clear">履歴をクリア</button>
   </header>
-  <div id="empty" hidden>まだ記録がありません。kintoneでリンクをダイアログで開くと、ここに経路が表示されます。</div>
-  <div id="scroll">
-    <svg id="canvas" xmlns="http://www.w3.org/2000/svg"></svg>
-  </div>
+  <div id="empty" hidden>まだ記録がありません。kintoneを閲覧すると、ここに経路が表示されます。</div>
+  <div id="cy" hidden></div>
+  <script src="vendor/cytoscape.min.js"></script>
   <script src="map.js"></script>
 </body>
 </html>

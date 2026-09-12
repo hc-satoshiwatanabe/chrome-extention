@@ -4,6 +4,7 @@ kintone(cybozu.com / kintone.com)内のページ遷移(アプリ内のSPA遷移�
 
 - リポジトリ: https://github.com/hc-satoshiwatanabe/chrome-extention
 - プライバシーポリシー: [PRIVACY.md](PRIVACY.md)（公開URL: https://github.com/hc-satoshiwatanabe/chrome-extention/blob/main/PRIVACY.md ）
+- サードパーティライセンス: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
 > v2.0.0で、リンクをダイアログ(iframe)表示する機能は廃止しました。現在は経路の記録・可視化に特化しています。
 
@@ -20,7 +21,7 @@ kintone(cybozu.com / kintone.com)内のページ遷移(アプリ内のSPA遷移�
 - kintoneはアプリ内の遷移(一覧→レコード→関連レコードなど)の多くをSPA的に(ページを再読み込みせず)行うため、`history.pushState`/`hashchange`を監視して検知しています
 - リンクを`Ctrl`/`Cmd`/`Shift`/`Alt`を押しながらクリックしたり、`target="_blank"`のリンク、中クリックなどで**新しいタブ**を開いた場合も、そのタブでの経路が元の経路につながって記録されます
 - 別アプリへの完全なページ遷移(SPAではなく実際のページ再読み込み)でも、同じタブ内であれば経路はつながります(`sessionStorage`でタブ内の現在地を保持しているため)
-- 拡張機能アイコンの「経路マップを見る」から、記録された経路をツリー図(マインドマップ)で確認できます。ノードをクリックするとそのURLを新しいタブで開きます。「履歴をクリア」でいつでも消去できます
+- 拡張機能アイコンの「経路マップを見る」から、記録された経路をツリー図(マインドマップ)で確認できます。描画には[Cytoscape.js](https://js.cytoscape.org/)を使用しており、マウスホイールでズーム、ドラッグでパン(視点移動)ができます。ノードをクリックするとそのURLを新しいタブで開きます。「履歴をクリア」でいつでも消去できます
 - 経路マップのノードには、URLの代わりにアプリ名(kintoneのREST API `app.json` から取得)が表示されます(一覧は「アプリ名 - 一覧」)。取得できない場合はURLのまま表示されます
 - レコード詳細のノードは、アプリの「レコードのタイトルフィールド」設定(`app/settings.json`の`titleField`。手動設定されていない場合は最初の文字列1行フィールドをkintone標準の挙動に合わせて代用)の値を取得し、「アプリ名 - 取引先名など」のように表示します。取得できない場合は「アプリ名 - レコード#番号」にフォールバックします
 - 経路マップは5秒ごとに自動的に再読み込みされ、別タブでの閲覧状況をほぼリアルタイムに反映します
