@@ -8,3 +8,7 @@ chrome.storage.sync.get({ [STORAGE_KEY]: true }, (items) => {
 checkbox.addEventListener("change", () => {
   chrome.storage.sync.set({ [STORAGE_KEY]: checkbox.checked });
 });
+
+document.getElementById("openMap").addEventListener("click", () => {
+  chrome.tabs.create({ url: chrome.runtime.getURL("map.html") });
+});

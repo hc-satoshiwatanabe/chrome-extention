@@ -15,6 +15,20 @@
       align-items: center;
       gap: 8px;
       cursor: pointer;
+      margin-bottom: 12px;
+    }
+    button {
+      appearance: none;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      padding: 6px 10px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #f0f0f0;
     }
   </style>
 </head>
@@ -23,6 +37,7 @@
     <input type="checkbox" id="toggle" />
     kintoneリンクをダイアログで開く
   </label>
+  <button id="openMap" type="button">経路マップを見る</button>
   <script src="popup.js"></script>
 </body>
 </html>

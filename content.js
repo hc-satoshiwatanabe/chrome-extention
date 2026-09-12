@@ -22,6 +22,30 @@
     // until it's reloaded, but nothing throws.
   }
 
+  // Tracks the "current" node in the navigation-path graph for this tab, so
+  // consecutive dialog opens chain together (path.html / background.js).
+  // Stays null (a fresh root) unless this tab was opened via the dialog's
+  // "open in new tab" action from another tracked node.
+  let currentNodeId = null;
+
+  (async () => {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: "kld-get-pending-parent" });
+      if (resp && resp.parentId) currentNodeId = resp.parentId;
+    } catch (e) {
+      // extension context invalidated - this tab just starts as a fresh root
+    }
+  })();
+
+  async function recordNode(url) {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: "kld-record-node", url, parentId: currentNodeId });
+      if (resp && resp.nodeId) currentNodeId = resp.nodeId;
+    } catch (e) {
+      // extension context invalidated - path tracking just stops silently
+    }
+  }
+
   const STYLE = `
     .kld-overlay {
       position: fixed;
@@ -326,6 +350,8 @@
       }
     }
 
+    await recordNode(url.href);
+
     const host = document.createElement("div");
     host.id = HOST_ID;
     document.documentElement.appendChild(host);
@@ -359,7 +385,7 @@
       if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       e.preventDefault();
       try {
-        chrome.runtime.sendMessage({ type: "kld-open-new-tab", url: newTabLink.href }).catch(() => {});
+        chrome.runtime.sendMessage({ type: "kld-open-new-tab", url: newTabLink.href, parentId: currentNodeId }).catch(() => {});
       } catch (err) {
         // extension context invalidated - fall back to a plain new-tab open
         window.open(newTabLink.href, "_blank", "noopener,noreferrer");
