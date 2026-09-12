@@ -4,7 +4,7 @@
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Tracks page navigation inside kintone (including in-app SPA transitions) and visualizes it as a path map. Unofficial, independently developed.",
+    "message": "Tracks page navigation in kintone and visualizes it as a path map (mind map). Unofficial, independently developed.",
     "description": "Extension description"
   }
 }
