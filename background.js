@@ -11,15 +11,27 @@ function normalizeUrl(href) {
   }
 }
 
-// Records one node per tracked kintone page view, kept in
-// chrome.storage.local (not session/in-memory) so it survives the service
-// worker being unloaded between uses, and capped so it doesn't grow forever
-// with regular use.
+// Records one node per distinct URL, kept in chrome.storage.local (not
+// session/in-memory) so it survives the service worker being unloaded
+// between uses, and capped so it doesn't grow forever with regular use.
+// Revisiting a URL that's already a node reuses that same node (returning
+// its existing id) instead of creating a duplicate - so the map shows one
+// hub per page, with every path that led there or from there branching off
+// it, rather than a fresh copy every time. The node's parent is fixed at
+// first-recording time and never reassigned on reuse, both to keep "first
+// path taken" as the meaningful one and to avoid ever creating a cycle.
 async function recordNode(url, parentId) {
   const { [GRAPH_KEY]: graph } = await chrome.storage.local.get({ [GRAPH_KEY]: { nodes: {} } });
+  const normalized = normalizeUrl(url);
+
+  const existing = Object.entries(graph.nodes).find(([, node]) => node.url === normalized);
+  if (existing) {
+    return existing[0];
+  }
+
   const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   graph.nodes[id] = {
-    url,
+    url: normalized,
     parentId: parentId && graph.nodes[parentId] ? parentId : null,
     createdAt: Date.now(),
   };
