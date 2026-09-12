@@ -1,12 +1,12 @@
-# Link Dialog for kintone
+# kintone 経路マップ (kintone Path Map)
 
 kintone(cybozu.com / kintone.com)内のページ遷移(アプリ内のSPA遷移も含む)を記録し、経路マップ(マインドマップ)として可視化するChrome/Edge拡張機能です。サイボウズ株式会社の公式製品ではない、非公式の個人開発ツールです。
 
-- リポジトリ: https://github.com/hc-satoshiwatanabe/chrome-extention
+- リポジトリ: https://github.com/hc-satoshiwatanabe/chrome-extention (旧名称"Link Dialog for kintone"から改名。URLは変更していません)
 - プライバシーポリシー: [PRIVACY.md](PRIVACY.md)（公開URL: https://github.com/hc-satoshiwatanabe/chrome-extention/blob/main/PRIVACY.md ）
 - サードパーティライセンス: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 
-> v2.0.0で、リンクをダイアログ(iframe)表示する機能は廃止しました。現在は経路の記録・可視化に特化しています。
+> v2.0.0で、リンクをダイアログ(iframe)表示する機能は廃止しました。現在は経路の記録・可視化に特化しています。それに伴い、拡張機能名も「Link Dialog for kintone」から「kintone 経路マップ」に変更しました。
 
 ## インストール(Chrome / Edge共通・開発者モード)
 

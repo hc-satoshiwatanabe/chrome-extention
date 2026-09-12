@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>kintone 経路マップ (mockup)</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", sans-serif;
+      background: #f4f6f8;
+      color: #222;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+    }
+    h1 {
+      font-size: 16px;
+      margin: 0;
+    }
+    button {
+      appearance: none;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fff;
+      padding: 6px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #cy {
+      width: 100%;
+      height: calc(100vh - 49px);
+    }
+    #drawerOverlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.25);
+      z-index: 100;
+    }
+    #drawer {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 340px;
+      max-width: 90vw;
+      background: #fff;
+      box-shadow: -2px 0 12px rgba(0, 0, 0, 0.2);
+      z-index: 101;
+      display: flex;
+      flex-direction: column;
+    }
+    #drawerHeader {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 16px 16px 12px;
+      border-bottom: 1px solid #eee;
+    }
+    #drawerTitle {
+      font-size: 15px;
+      font-weight: 600;
+      word-break: break-word;
+      margin: 0;
+    }
+    #drawerClose {
+      appearance: none;
+      border: none;
+      background: transparent;
+      font-size: 20px;
+      line-height: 1;
+      cursor: pointer;
+      color: #555;
+      padding: 0 2px;
+      flex: 0 0 auto;
+    }
+    #drawerBody {
+      padding: 12px 16px;
+      overflow-y: auto;
+      flex: 1 1 auto;
+    }
+    .drawer-field {
+      margin-bottom: 14px;
+    }
+    .drawer-field .label {
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 3px;
+    }
+    .drawer-field .value {
+      font-size: 13px;
+      color: #222;
+      word-break: break-all;
+    }
+    #drawerFooter {
+      padding: 12px 16px;
+      border-top: 1px solid #eee;
+    }
+    #drawerOpenBtn {
+      width: 100%;
+      margin-bottom: 8px;
+    }
+    #drawerDeleteBtn {
+      width: 100%;
+      color: #c0392b;
+      border-color: #e0b4ae;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>kintone 経路マップ</h1>
+    <button id="clear">履歴をクリア</button>
+  </header>
+  <div id="cy"></div>
+
+  <div id="drawerOverlay"></div>
+  <div id="drawer" role="dialog" aria-label="ノードの詳細">
+    <div id="drawerHeader">
+      <h2 id="drawerTitle">案件管理 - サンプル商事株式会社</h2>
+      <button id="drawerClose" type="button" aria-label="閉じる">×</button>
+    </div>
+    <div id="drawerBody">
+      <div class="drawer-field">
+        <div class="label">種別</div>
+        <div class="value">レコード</div>
+      </div>
+      <div class="drawer-field">
+        <div class="label">レコード番号</div>
+        <div class="value">1042</div>
+      </div>
+      <div class="drawer-field">
+        <div class="label">記録日時</div>
+        <div class="value">2026/9/12 15:06:34</div>
+      </div>
+      <div class="drawer-field">
+        <div class="label">URL</div>
+        <div class="value">https://sample.cybozu.com/k/120/show#record=1042</div>
+      </div>
+    </div>
+    <div id="drawerFooter">
+      <button id="drawerOpenBtn" type="button">新しいタブで開く ↗</button>
+      <button id="drawerDeleteBtn" type="button">このノードを削除</button>
+    </div>
+  </div>
+
+  <script src="../vendor/cytoscape.min.js"></script>
+  <script>
+    const elements = [
+      { data: { id: "1", label: "ポータル" } },
+      { data: { id: "2", label: "案件管理 - 一覧" } },
+      { data: { id: "3", label: "案件管理 - サンプル商事株式会社" } },
+      { data: { id: "4", label: "案件管理 - サンプル商事株式会社\n追加案件" } },
+      { data: { id: "5", label: "取引先管理 - サンプル物産合同会社" } },
+      { data: { id: "6", label: "押印申請 - 見積書" } },
+
+      { data: { id: "e12", source: "1", target: "2" } },
+      { data: { id: "e23", source: "2", target: "3" } },
+      { data: { id: "e34", source: "3", target: "4" } },
+      { data: { id: "e35", source: "3", target: "5" } },
+      { data: { id: "e46", source: "4", target: "6" } },
+    ];
+
+    const cy = cytoscape({
+      container: document.getElementById("cy"),
+      elements,
+      style: [
+        {
+          selector: "node",
+          style: {
+            shape: "round-rectangle",
+            "background-color": "#ffffff",
+            "border-color": "#3498db",
+            "border-width": 1.5,
+            label: "data(label)",
+            "text-valign": "center",
+            "text-halign": "center",
+            "font-size": 11,
+            color: "#222",
+            padding: "10px",
+            width: "label",
+            height: "label",
+            "text-wrap": "wrap",
+            "text-max-width": "150px",
+          },
+        },
+        {
+          selector: "#3",
+          style: {
+            "border-color": "#e67e22",
+            "border-width": 2.5,
+          },
+        },
+        {
+          selector: "edge",
+          style: {
+            width: 1.5,
+            "line-color": "#b8c4cc",
+            "target-arrow-color": "#b8c4cc",
+            "target-arrow-shape": "triangle",
+            "arrow-scale": 0.8,
+            "curve-style": "bezier",
+          },
+        },
+      ],
+      layout: {
+        name: "breadthfirst",
+        directed: true,
+        roots: ["1"],
+        padding: 30,
+        spacingFactor: 1.3,
+      },
+      wheelSensitivity: 0.3,
+      userZoomingEnabled: false,
+      userPanningEnabled: false,
+      boxSelectionEnabled: false,
+      autoungrabify: true,
+    });
+
+    cy.resize();
+    cy.fit(undefined, 60);
+
+    document.getElementById("drawerClose").addEventListener("click", () => {});
+  </script>
+</body>
+</html>
