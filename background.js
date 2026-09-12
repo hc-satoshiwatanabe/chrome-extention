@@ -1,5 +1,7 @@
 const GRAPH_KEY = "kintoneLinkDialogGraph";
 const MAX_NODES = 500;
+const PENDING_URL_KEY = "pendingParentByUrl";
+const PENDING_TTL_MS = 15000;
 
 function normalizeUrl(href) {
   try {
@@ -9,34 +11,16 @@ function normalizeUrl(href) {
   }
 }
 
-async function focusExistingTabOrCreate(url, parentId) {
-  const target = normalizeUrl(url);
-  const tabs = await chrome.tabs.query({});
-  const existing = tabs.find((tab) => tab.url && normalizeUrl(tab.url) === target);
-
-  if (existing) {
-    await chrome.tabs.update(existing.id, { active: true });
-    await chrome.windows.update(existing.windowId, { focused: true });
-  } else {
-    const created = await chrome.tabs.create({ url });
-    if (parentId) {
-      await setPendingParent(created.id, parentId);
-    }
-  }
-}
-
-// Records one node per dialog opened, so a "path" of dialogs (within a tab,
-// and across tabs via "open in new tab") can be reconstructed later on the
-// map page. Kept in chrome.storage.local (not session/in-memory) so it
-// survives the service worker being unloaded between uses, and capped so it
-// doesn't grow forever with regular use.
-async function recordNode(url, parentId, tabId) {
+// Records one node per tracked kintone page view, kept in
+// chrome.storage.local (not session/in-memory) so it survives the service
+// worker being unloaded between uses, and capped so it doesn't grow forever
+// with regular use.
+async function recordNode(url, parentId) {
   const { [GRAPH_KEY]: graph } = await chrome.storage.local.get({ [GRAPH_KEY]: { nodes: {} } });
   const id = `n_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   graph.nodes[id] = {
     url,
     parentId: parentId && graph.nodes[parentId] ? parentId : null,
-    tabId,
     createdAt: Date.now(),
   };
 
@@ -52,22 +36,29 @@ async function recordNode(url, parentId, tabId) {
   return id;
 }
 
-// Bridges a dialog's "parent" node across a tab boundary: when a new tab is
-// created via "open in new tab", we remember the node it should attach to
-// here (chrome.storage.session survives service worker restarts but is
-// cleared when the browser closes, which is the right lifetime for this).
-async function setPendingParent(tabId, parentId) {
-  const { pendingParents } = await chrome.storage.session.get({ pendingParents: {} });
-  pendingParents[tabId] = parentId;
-  await chrome.storage.session.set({ pendingParents });
+// Bridges a node's "parent" across a tab boundary for links that open in a
+// new tab (ctrl/cmd/shift/middle-click, target="_blank"): we don't control
+// that tab's creation, so we can't tag it by tab id ahead of time like we
+// could before. Instead we remember "the next tab that lands on this exact
+// URL should treat this as its parent", keyed by URL with a short expiry.
+// chrome.storage.session survives service worker restarts but is cleared
+// when the browser closes, which is the right lifetime for this.
+async function registerPendingUrl(url, parentId) {
+  if (!parentId) return;
+  const { [PENDING_URL_KEY]: pending } = await chrome.storage.session.get({ [PENDING_URL_KEY]: {} });
+  pending[normalizeUrl(url)] = { parentId, expiresAt: Date.now() + PENDING_TTL_MS };
+  await chrome.storage.session.set({ [PENDING_URL_KEY]: pending });
 }
 
-async function takePendingParent(tabId) {
-  const { pendingParents } = await chrome.storage.session.get({ pendingParents: {} });
-  const parentId = pendingParents[tabId] || null;
-  if (parentId) {
-    delete pendingParents[tabId];
-    await chrome.storage.session.set({ pendingParents });
+async function takePendingUrl(url) {
+  const key = normalizeUrl(url);
+  const { [PENDING_URL_KEY]: pending } = await chrome.storage.session.get({ [PENDING_URL_KEY]: {} });
+  const entry = pending[key];
+  let parentId = null;
+  if (entry) {
+    if (entry.expiresAt > Date.now()) parentId = entry.parentId;
+    delete pending[key];
+    await chrome.storage.session.set({ [PENDING_URL_KEY]: pending });
   }
   return parentId;
 }
@@ -75,20 +66,20 @@ async function takePendingParent(tabId) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message) return;
 
-  if (message.type === "kld-open-new-tab" && message.url) {
-    focusExistingTabOrCreate(message.url, message.parentId);
-    return;
-  }
-
-  if (message.type === "kld-record-node" && message.url && sender.tab) {
-    recordNode(message.url, message.parentId, sender.tab.id).then((nodeId) => {
+  if (message.type === "kld-record-node" && message.url) {
+    recordNode(message.url, message.parentId).then((nodeId) => {
       sendResponse({ nodeId });
     });
     return true;
   }
 
-  if (message.type === "kld-get-pending-parent" && sender.tab) {
-    takePendingParent(sender.tab.id).then((parentId) => {
+  if (message.type === "kld-register-pending-url" && message.url) {
+    registerPendingUrl(message.url, message.parentId);
+    return;
+  }
+
+  if (message.type === "kld-take-pending-url" && message.url) {
+    takePendingUrl(message.url).then((parentId) => {
       sendResponse({ parentId });
     });
     return true;

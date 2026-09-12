@@ -4,7 +4,7 @@
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "kintone内のリンククリックをダイアログ(iframe)表示に差し替える非公式の拡張機能です。",
+    "message": "kintone内のページ遷移(アプリ内のSPA遷移も含む)を記録し、経路マップ(マインドマップ)として可視化する非公式の拡張機能です。",
     "description": "Extension description"
   }
 }

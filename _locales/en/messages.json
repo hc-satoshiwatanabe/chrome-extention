@@ -4,7 +4,7 @@
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Replaces link-click navigation inside kintone apps with an in-page dialog (unofficial, independently developed).",
+    "message": "Tracks page navigation inside kintone (including in-app SPA transitions) and visualizes it as a path map. Unofficial, independently developed.",
     "description": "Extension description"
   }
 }
