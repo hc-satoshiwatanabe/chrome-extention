@@ -155,4 +155,30 @@
 
   document.addEventListener("click", handlePossibleNewTabClick, true);
   document.addEventListener("auxclick", handlePossibleNewTabClick, true);
+
+  // Some links aren't plain <a target="_blank"> tags at all - kintone
+  // customizations (e.g. a "related record" link built from a lookup field)
+  // often open a new tab by calling window.open(url) from a click handler
+  // on a button/div. That bypasses the anchor-based detection above
+  // entirely, so we also tag the destination here, at the one chokepoint
+  // every such call has to go through regardless of how it's triggered.
+  try {
+    const originalWindowOpen = window.open.bind(window);
+    window.open = function (url, ...rest) {
+      if (enabled && url) {
+        try {
+          const resolved = new URL(url, location.href);
+          if (resolved.origin === location.origin && !isExcludedPath(resolved)) {
+            registerPendingParentForUrl(resolved.href, currentNodeId);
+          }
+        } catch (e) {
+          // malformed/relative-without-base url - nothing to tag
+        }
+      }
+      return originalWindowOpen(url, ...rest);
+    };
+  } catch (e) {
+    // window.open not configurable in this context - new tabs opened this
+    // way just won't be linked to their origin, same as before
+  }
 })();
