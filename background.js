@@ -11,20 +11,57 @@ function normalizeUrl(href) {
   }
 }
 
-// Records one node per distinct URL, kept in chrome.storage.local (not
-// session/in-memory) so it survives the service worker being unloaded
-// between uses, and capped so it doesn't grow forever with regular use.
-// Revisiting a URL that's already a node reuses that same node (returning
-// its existing id) instead of creating a duplicate - so the map shows one
-// hub per page, with every path that led there or from there branching off
-// it, rather than a fresh copy every time. The node's parent is fixed at
-// first-recording time and never reassigned on reuse, both to keep "first
-// path taken" as the meaningful one and to avoid ever creating a cycle.
+// kintone's app list ("/k/<appId>/") and record detail ("/k/<appId>/show",
+// with the record id in the "#record=<id>" hash) URL shapes are the same
+// across every app/tenant. Mirrors map.js's parseAppInfo - kept as a
+// separate copy since this extension has no shared-module setup, but the
+// two should stay in sync.
+function parseAppInfo(urlStr) {
+  try {
+    const url = new URL(urlStr);
+    const listMatch = url.pathname.match(/^\/k\/(\d+)\/?$/);
+    if (listMatch) {
+      return { origin: url.origin, appId: listMatch[1], kind: "list" };
+    }
+    const showMatch = url.pathname.match(/^\/k\/(\d+)\/show\/?$/);
+    if (showMatch) {
+      const recordMatch = url.hash.match(/record=(\d+)/);
+      return { origin: url.origin, appId: showMatch[1], kind: "record", recordId: recordMatch ? recordMatch[1] : null };
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// The identity used to decide "is this the same node". For app list/record
+// pages this deliberately ignores incidental differences (?view=, sort/
+// filter query params, extra hash fragments) so e.g. the same record always
+// maps to one node regardless of which link led there; anything else falls
+// back to the full normalized URL.
+function dedupeKey(urlStr) {
+  const info = parseAppInfo(urlStr);
+  if (!info) return normalizeUrl(urlStr);
+  if (info.kind === "list") return `${info.origin}|list|${info.appId}`;
+  return `${info.origin}|record|${info.appId}|${info.recordId || ""}`;
+}
+
+// Records one node per distinct page (see dedupeKey), kept in
+// chrome.storage.local (not session/in-memory) so it survives the service
+// worker being unloaded between uses, and capped so it doesn't grow forever
+// with regular use. Revisiting the same page reuses that same node
+// (returning its existing id) instead of creating a duplicate - so the map
+// shows one hub per page, with every path that led there or from there
+// branching off it, rather than a fresh copy every time. The node's parent
+// is fixed at first-recording time and never reassigned on reuse, both to
+// keep "first path taken" as the meaningful one and to avoid ever creating
+// a cycle.
 async function recordNode(url, parentId) {
   const { [GRAPH_KEY]: graph } = await chrome.storage.local.get({ [GRAPH_KEY]: { nodes: {} } });
   const normalized = normalizeUrl(url);
+  const key = dedupeKey(normalized);
 
-  const existing = Object.entries(graph.nodes).find(([, node]) => node.url === normalized);
+  const existing = Object.entries(graph.nodes).find(([, node]) => dedupeKey(node.url) === key);
   if (existing) {
     return existing[0];
   }
