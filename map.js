@@ -208,6 +208,25 @@ function kindLabel(info) {
   return info.kind === "record" ? "レコード" : "一覧";
 }
 
+const DEFAULT_NODE_COLOR = { bg: "#ffffff", border: "#3498db" };
+
+// Deterministic color per app id (same appId -> same hue every time, across
+// renders and sessions), so nodes belonging to one app are visually
+// groupable at a glance. Nodes we can't tie to an app (kind === null) get a
+// neutral default instead of a color.
+function colorForAppId(appId) {
+  if (!appId) return DEFAULT_NODE_COLOR;
+  let hash = 0;
+  for (let i = 0; i < appId.length; i++) {
+    hash = (hash * 31 + appId.charCodeAt(i)) >>> 0;
+  }
+  const hue = hash % 360;
+  return {
+    bg: `hsl(${hue}, 70%, 94%)`,
+    border: `hsl(${hue}, 55%, 45%)`,
+  };
+}
+
 const drawerEl = document.getElementById("drawer");
 const drawerOverlayEl = document.getElementById("drawerOverlay");
 const drawerTitleEl = document.getElementById("drawerTitle");
@@ -317,8 +336,8 @@ const CY_STYLE = [
     selector: "node",
     style: {
       shape: "round-rectangle",
-      "background-color": "#ffffff",
-      "border-color": "#3498db",
+      "background-color": "data(bgColor)",
+      "border-color": "data(borderColor)",
       "border-width": 1.5,
       label: "data(label)",
       "text-valign": "center",
@@ -380,7 +399,17 @@ async function render() {
   const elements = [];
   const rootIds = [];
   for (const [id, node] of Object.entries(nodes)) {
-    elements.push({ data: { id, url: node.url, label: truncateLabel(shortLabel(node.url)) } });
+    const info = parseAppInfo(node.url);
+    const color = colorForAppId(info && info.appId);
+    elements.push({
+      data: {
+        id,
+        url: node.url,
+        label: truncateLabel(shortLabel(node.url)),
+        bgColor: color.bg,
+        borderColor: color.border,
+      },
+    });
   }
   for (const [id, node] of Object.entries(nodes)) {
     if (node.parentId && nodes[node.parentId]) {
