@@ -59,9 +59,13 @@ function fetchAppName(origin, appId) {
 const titleFieldCache = new Map();
 
 // Mirrors how kintone itself picks a record's display title: the app's
-// configured "titleField" setting if one was manually chosen, otherwise the
-// first single-line text field (kintone's own default when set to "AUTO").
-function fetchTitleFieldCode(origin, appId) {
+// configured "titleField" setting if one was manually chosen (a single,
+// authoritative field), otherwise the first single-line text field
+// (kintone's own default when set to "AUTO") *plus* the field right after
+// it in the form's layout - the first text field alone is often something
+// like a code/ID, with the actually-identifying value (a company name,
+// say) in the very next field.
+function fetchTitleFieldCodes(origin, appId) {
   const key = `${origin}|${appId}`;
   if (!titleFieldCache.has(key)) {
     titleFieldCache.set(
@@ -76,7 +80,7 @@ function fetchTitleFieldCode(origin, appId) {
             const settings = await res.json();
             const tf = settings.titleField;
             if (tf && tf.selectionMode === "MANUAL" && tf.code) {
-              return tf.code;
+              return [tf.code];
             }
           }
         } catch (e) {
@@ -117,19 +121,23 @@ function fetchTitleFieldCode(origin, appId) {
             };
             walk(layoutData.layout);
 
-            const firstTextCode = orderedCodes.find((code) => properties[code] && properties[code].type === "SINGLE_LINE_TEXT");
-            if (firstTextCode) return firstTextCode;
+            const idx = orderedCodes.findIndex((code) => properties[code] && properties[code].type === "SINGLE_LINE_TEXT");
+            if (idx !== -1) {
+              const codes = [orderedCodes[idx]];
+              if (orderedCodes[idx + 1]) codes.push(orderedCodes[idx + 1]);
+              return codes;
+            }
           }
 
           // layout.json unavailable/unexpected shape - fall back to
           // fields.json alone (property order isn't guaranteed to match the
           // visual layout, but it's better than nothing).
           const entry = Object.entries(properties).find(([, field]) => field.type === "SINGLE_LINE_TEXT");
-          if (entry) return entry[0];
+          if (entry) return [entry[0]];
         } catch (e) {
           // no luck - record nodes will just keep their "レコード#id" label
         }
-        return null;
+        return [];
       })()
     );
   }
@@ -144,8 +152,8 @@ function fetchRecordTitle(origin, appId, recordId) {
     recordTitleCache.set(
       key,
       (async () => {
-        const fieldCode = await fetchTitleFieldCode(origin, appId);
-        if (!fieldCode) return null;
+        const fieldCodes = await fetchTitleFieldCodes(origin, appId);
+        if (!fieldCodes.length) return null;
         try {
           const res = await fetch(`${origin}/k/v1/record.json?app=${encodeURIComponent(appId)}&id=${encodeURIComponent(recordId)}`, {
             credentials: "same-origin",
@@ -153,9 +161,10 @@ function fetchRecordTitle(origin, appId, recordId) {
           });
           if (!res.ok) return null;
           const data = await res.json();
-          const field = data.record && data.record[fieldCode];
-          const value = field && field.value;
-          return typeof value === "string" && value.trim() ? value : null;
+          const values = fieldCodes
+            .map((code) => data.record && data.record[code] && data.record[code].value)
+            .filter((value) => typeof value === "string" && value.trim());
+          return values.length ? values.join(" ") : null;
         } catch (e) {
           return null;
         }
