@@ -64,6 +64,48 @@ function shortLabel(url) {
   }
 }
 
+// kintone's app list ("/k/<appId>/") and record detail ("/k/<appId>/show",
+// with the record id in the "#record=<id>" hash) URL shapes are the same
+// across every app/tenant, so this parsing is not app-specific.
+function parseAppInfo(urlStr) {
+  try {
+    const url = new URL(urlStr);
+    const listMatch = url.pathname.match(/^\/k\/(\d+)\/?$/);
+    if (listMatch) {
+      return { origin: url.origin, appId: listMatch[1], kind: "list" };
+    }
+    const showMatch = url.pathname.match(/^\/k\/(\d+)\/show\/?$/);
+    if (showMatch) {
+      const recordMatch = url.hash.match(/record=(\d+)/);
+      return { origin: url.origin, appId: showMatch[1], kind: "record", recordId: recordMatch ? recordMatch[1] : null };
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+const appNameCache = new Map();
+
+function fetchAppName(origin, appId) {
+  const key = `${origin}|${appId}`;
+  if (!appNameCache.has(key)) {
+    const promise = fetch(`${origin}/k/v1/app.json?id=${encodeURIComponent(appId)}`, {
+      credentials: "same-origin",
+      headers: { "X-Requested-With": "XMLHttpRequest" },
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => (data && data.name) || null)
+      .catch(() => null);
+    appNameCache.set(key, promise);
+  }
+  return appNameCache.get(key);
+}
+
+function truncateLabel(label) {
+  return label.length > 34 ? `${label.slice(0, 33)}…` : label;
+}
+
 function svgEl(tag, attrs) {
   const el = document.createElementNS(SVG_NS, tag);
   for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
@@ -127,6 +169,8 @@ async function render() {
     }
   }
 
+  const labelTargets = [];
+
   for (const id of ids) {
     const pos = positions[id];
     if (!pos) continue;
@@ -143,8 +187,7 @@ async function render() {
       x: 8,
       y: NODE_HEIGHT / 2 + 4,
     });
-    const label = shortLabel(node.url);
-    text.textContent = label.length > 34 ? `${label.slice(0, 33)}…` : label;
+    text.textContent = truncateLabel(shortLabel(node.url));
 
     const title = svgEl("title", {});
     title.textContent = node.url;
@@ -154,6 +197,19 @@ async function render() {
     g.appendChild(title);
     g.addEventListener("click", () => openUrl(node.url));
     nodeLayer.appendChild(g);
+
+    const info = parseAppInfo(node.url);
+    if (info) labelTargets.push({ textEl: text, titleEl: title, info });
+  }
+
+  for (const { textEl, titleEl, info } of labelTargets) {
+    fetchAppName(info.origin, info.appId).then((appName) => {
+      if (!appName) return;
+      const suffix = info.kind === "record" ? ` - レコード#${info.recordId || "?"}` : " - 一覧";
+      const fullLabel = `${appName}${suffix}`;
+      textEl.textContent = truncateLabel(fullLabel);
+      titleEl.textContent = `${fullLabel}\n${titleEl.textContent}`;
+    });
   }
 }
 
