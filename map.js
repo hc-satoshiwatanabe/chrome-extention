@@ -136,6 +136,94 @@ function openUrl(url) {
   chrome.tabs.create({ url });
 }
 
+function formatDateTime(ms) {
+  if (!ms) return "-";
+  try {
+    return new Date(ms).toLocaleString("ja-JP");
+  } catch (e) {
+    return "-";
+  }
+}
+
+function kindLabel(info) {
+  if (!info) return "その他";
+  return info.kind === "record" ? "レコード" : "一覧";
+}
+
+const drawerEl = document.getElementById("drawer");
+const drawerOverlayEl = document.getElementById("drawerOverlay");
+const drawerTitleEl = document.getElementById("drawerTitle");
+const drawerBodyEl = document.getElementById("drawerBody");
+const drawerOpenBtn = document.getElementById("drawerOpenBtn");
+
+let latestNodes = {};
+let drawerNodeId = null;
+
+function drawerField(label, value) {
+  const wrap = document.createElement("div");
+  wrap.className = "drawer-field";
+  const labelEl = document.createElement("div");
+  labelEl.className = "label";
+  labelEl.textContent = label;
+  const valueEl = document.createElement("div");
+  valueEl.className = "value";
+  valueEl.textContent = value;
+  wrap.appendChild(labelEl);
+  wrap.appendChild(valueEl);
+  return wrap;
+}
+
+function showDrawer(id) {
+  const node = latestNodes[id];
+  if (!node) return;
+
+  drawerNodeId = id;
+  const info = parseAppInfo(node.url);
+
+  drawerTitleEl.textContent = shortLabel(node.url);
+  drawerBodyEl.innerHTML = "";
+  drawerBodyEl.appendChild(drawerField("種別", kindLabel(info)));
+  if (info && info.kind === "record" && info.recordId) {
+    drawerBodyEl.appendChild(drawerField("レコード番号", info.recordId));
+  }
+  drawerBodyEl.appendChild(drawerField("記録日時", formatDateTime(node.createdAt)));
+  drawerBodyEl.appendChild(drawerField("URL", node.url));
+
+  drawerOverlayEl.hidden = false;
+  drawerEl.classList.add("open");
+
+  if (info) {
+    fetchAppName(info.origin, info.appId).then((appName) => {
+      if (!appName || drawerNodeId !== id) return;
+      const suffix = info.kind === "record" ? ` - レコード#${info.recordId || "?"}` : " - 一覧";
+      drawerTitleEl.textContent = `${appName}${suffix}`;
+
+      if (info.kind === "record" && info.recordId) {
+        fetchRecordTitle(info.origin, info.appId, info.recordId).then((titleValue) => {
+          if (!titleValue || drawerNodeId !== id) return;
+          drawerTitleEl.textContent = `${appName} - ${titleValue}`;
+        });
+      }
+    });
+  }
+}
+
+function hideDrawer() {
+  drawerNodeId = null;
+  drawerEl.classList.remove("open");
+  drawerOverlayEl.hidden = true;
+}
+
+document.getElementById("drawerClose").addEventListener("click", hideDrawer);
+drawerOverlayEl.addEventListener("click", hideDrawer);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") hideDrawer();
+});
+drawerOpenBtn.addEventListener("click", () => {
+  const node = drawerNodeId && latestNodes[drawerNodeId];
+  if (node) openUrl(node.url);
+});
+
 let cy = null;
 let renderVersion = 0;
 
@@ -180,6 +268,7 @@ const CY_STYLE = [
 async function render() {
   const myVersion = ++renderVersion;
   const nodes = await loadNodes();
+  latestNodes = nodes;
   const ids = Object.keys(nodes);
 
   const empty = document.getElementById("empty");
@@ -232,8 +321,7 @@ async function render() {
   cy = thisCy;
 
   thisCy.on("tap", "node", (evt) => {
-    const url = evt.target.data("url");
-    if (url) openUrl(url);
+    showDrawer(evt.target.id());
   });
 
   if (previousView) {
